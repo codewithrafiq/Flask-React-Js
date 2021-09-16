@@ -1,27 +1,31 @@
 import React, { useState } from "react";
 import { Button, Grid, TextField } from "@material-ui/core";
 import { BASE_URL } from "../env";
+import { useHistory } from "react-router-dom";
+
+
 
 const Register = () => {
-    const [username, setUsername] = useState("")
     const [password1, setPassword1] = useState("")
     const [password2, setPassword2] = useState("")
     const [email, setEmail] = useState("")
+    const history = useHistory()
     const register_button = () => {
-        console.log(username, password1, password2, email)
+        console.log( password1, password2, email)
         fetch(`${BASE_URL}/api/register`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
             },
             body: JSON.stringify({
-                username: username,
                 password: password1,
                 email: email
             })
         }).then(res=>res.json())      
         .then(res => {
             console.log(res)
+            localStorage.clear();
+            history.push("/")
         })
         .catch(err => {
             console.log(err)
@@ -37,14 +41,6 @@ const Register = () => {
       spacing={3}
     >
       <h1>Register Page</h1>
-      <TextField
-        label="Username"
-        placeholder="Username"
-        type="text"
-        variant="outlined"
-        value={username}
-        onChange={(e) => setUsername(e.target.value)}
-      />
       <TextField
         label="Email"
         placeholder="Email"

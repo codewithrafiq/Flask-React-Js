@@ -1,6 +1,6 @@
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask import render_template, request,  jsonify, make_response
-from flaskapp.models import User, Post
+from flask import render_template, request, jsonify, make_response
+from flaskapp.models import User, Todo
 from flaskapp import app, db
 from functools import wraps
 import datetime
@@ -37,9 +37,10 @@ def home(path=None):
 def signup_user():
     data = request.get_json()
     try:
-        hashed_password = generate_password_hash(data['password'], method='sha256')
+        hashed_password = generate_password_hash(
+            data['password'], method='sha256')
         new_user = User(public_id=str(uuid.uuid4(
-        )), username=data['username'], email=data['email'], password=hashed_password)
+        )), email=data['email'], password=hashed_password)
         db.session.add(new_user)
         db.session.commit()
         return jsonify({'message': 'user created successfully'})
@@ -70,41 +71,69 @@ def login_user():
     return make_response('could not verify',  401, {'Authentication': '"login required"'})
 
 
-@app.route('/api/posts', methods=['GET','POST'])
+@app.route('/api/posts', methods=['GET', 'POST'])
 @token_required
 def get_all_posts(current_user, *args, **kwargs):
     if request.method == 'GET':
-        posts = Post.query.filter_by(user_id=current_user.id).all()
-        print("posts", posts)
+        todos = Todo.query.filter_by(user_id=current_user.id).all()[::-1]
+       
         output = []
-        for post in posts:
-            post_data = {}
-            post_data['id'] = post.id
-            post_data['title'] = post.title
-            post_data['content'] = post.content
-            post_data['user_id'] = post.user_id
-            output.append(post_data)
+        for todo in todos:
+            todo_data = {}
+            todo_data['id'] = todo.id
+            todo_data['title'] = todo.title
+            todo_data['date_posted'] = todo.date_posted
+            todo_data['date_updated'] = todo.date_updated
+            todo_data['complited'] = todo.complited
+            user = User.query.filter_by(id=todo.user_id).first()
+            todo_data['user'] = {
+                "email": user.email,
+                "id": user.id
+            }
+            output.append(todo_data)
         return jsonify({'posts': output})
     elif request.method == 'POST':
         try:
             data = request.get_json()
-            new_post = Post(title=data['title'], user_id=current_user.id,content= data['content'])
-            db.session.add(new_post)
+            new_todo = Todo(
+                title=data['title'], user_id=current_user.id)
+            db.session.add(new_todo)
             db.session.commit()
             return jsonify({'message': 'post created successfully'})
         except Exception as e:
             return jsonify({'message': str(e)})
 
-@app.route('/api/posts/<int:post_id>', methods=['GET'])
+
+@app.route('/api/posts/<int:post_id>', methods=['GET', "POST", "DELETE"])
 @token_required
 def get_one_post(current_user, post_id, *args, **kwargs):
-    post = Post.query.filter_by(user_id=current_user.id,id=post_id).first()
-    if not post:
-        return jsonify({'message': 'no post found'})
-    post_data = {}
-    post_data['id'] = post.id
-    post_data['title'] = post.title
-    post_data['content'] = post.content
-    post_data['user_id'] = post.user_id
-    return jsonify({'post': post_data})
-
+    if request.method == 'GET':
+        post = Todo.query.filter_by(
+            user_id=current_user.id, id=post_id).first()
+        if not post:
+            return jsonify({'message': 'no post found'})
+        post_data = {}
+        post_data['id'] = post.id
+        post_data['title'] = post.title
+        post_data['user_id'] = post.user_id
+        return jsonify({'post': post_data})
+    elif request.method == "POST":
+        try:
+            data = request.get_json()
+            post = Todo.query.filter_by(
+                user_id=current_user.id, id=post_id).first()
+            post.title = data['title']
+            post.date_updated = datetime.datetime.utcnow()
+            db.session.commit()
+            return jsonify({'message': 'post updated successfully'})
+        except Exception as e:
+            return jsonify({'message': str(e)})
+    elif request.method == "DELETE":
+        try:
+            post = Todo.query.filter_by(
+                user_id=current_user.id, id=post_id).first()
+            db.session.delete(post)
+            db.session.commit()
+            return make_response('post deleted successfully', 200)
+        except Exception as e:
+            return jsonify({'message': str(e)})
